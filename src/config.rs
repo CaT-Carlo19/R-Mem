@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde::Deserialize;
@@ -84,6 +85,12 @@ pub struct LlmConfig {
     pub base_url: String,
     #[serde(default)]
     pub model: String,
+    /// Extra HTTP headers for either LLM protocol. Per-request auth takes precedence.
+    #[serde(default)]
+    pub extra_headers: HashMap<String, String>,
+    /// Sampling temperature; None omits the field for providers that reject it.
+    #[serde(default = "default_temperature")]
+    pub temperature: Option<f64>,
 }
 
 impl Default for LlmConfig {
@@ -93,6 +100,8 @@ impl Default for LlmConfig {
             api_key: String::new(),
             base_url: String::new(),
             model: String::new(),
+            extra_headers: HashMap::new(),
+            temperature: default_temperature(),
         }
     }
 }
@@ -145,6 +154,9 @@ fn default_bind() -> String {
 }
 fn default_provider() -> String {
     "openai".to_string()
+}
+fn default_temperature() -> Option<f64> {
+    Some(0.1)
 }
 fn default_embed_model() -> String {
     "nomic-embed-text".to_string()

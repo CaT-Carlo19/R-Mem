@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use reqwest::Client;
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Client,
+};
 
 use crate::config::LlmConfig;
 
@@ -308,7 +311,14 @@ pub async fn extract_relations(
 // ── LLM call helper ──────────────────────────────────────────────────
 
 async fn llm_call(config: &LlmConfig, system: &str, user: &str) -> Result<String> {
-    let client = Client::new();
+    let mut headers = HeaderMap::with_capacity(config.extra_headers.len());
+    for (name, value) in &config.extra_headers {
+        headers.insert(
+            HeaderName::from_bytes(name.as_bytes()).context("Invalid LLM extra header name")?,
+            HeaderValue::from_str(value).context("Invalid LLM extra header value")?,
+        );
+    }
+    let client = Client::builder().default_headers(headers).build()?;
 
     let is_anthropic = config.provider.as_str() == "anthropic";
 
@@ -331,15 +341,17 @@ async fn llm_call(config: &LlmConfig, system: &str, user: &str) -> Result<String
     if is_anthropic {
         // Anthropic Messages API (native)
         let url = format!("{base}/v1/messages");
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": model,
             "max_tokens": 4096,
             "system": system,
             "messages": [
                 {"role": "user", "content": user}
             ],
-            "temperature": 0.1,
         });
+        if let Some(temperature) = config.temperature {
+            body["temperature"] = serde_json::json!(temperature);
+        }
 
         let mut req = client.post(&url)
             .header("content-type", "application/json")
@@ -369,14 +381,16 @@ async fn llm_call(config: &LlmConfig, system: &str, user: &str) -> Result<String
     } else {
         // OpenAI-compatible API (OpenAI, Ollama, etc.)
         let url = format!("{base}/v1/chat/completions");
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user}
             ],
-            "temperature": 0.1,
         });
+        if let Some(temperature) = config.temperature {
+            body["temperature"] = serde_json::json!(temperature);
+        }
 
         let mut req = client.post(&url).header("content-type", "application/json");
         if !config.api_key.is_empty() {

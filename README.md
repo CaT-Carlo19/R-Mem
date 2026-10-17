@@ -186,6 +186,48 @@ model = "text-embedding-3-small"
 
 > **Security:** R-Mem binds to `127.0.0.1` by default (localhost only). Never put API keys in code — use `rustmem.toml` (gitignored) or environment variables (`RUSTMEM__LLM__API_KEY`).
 
+### Custom LLM request options
+
+Both LLM protocols accept `temperature` (default `0.1`) and an
+`[llm.extra_headers]` string map. This supports gateways that require session
+headers, client identification, or a model-specific temperature:
+
+```toml
+[llm]
+provider = "openai"
+base_url = "https://opencode.ai/zen/go"
+model = "deepseek-v4.1-flash"
+temperature = 0.1
+
+[llm.extra_headers]
+x-opencode-session = "your-current-coding-session"
+User-Agent = "your-rmem-coding-client/1.0"
+
+[embedding]
+provider = "openai"
+base_url = "http://127.0.0.1:1234"
+model = "text-embedding-nomic-embed-text-v1.5"
+dimensions = 768
+```
+
+Set the LLM key through `RUSTMEM__LLM__API_KEY`; it need not be shared with
+the local embedding server. Follow the provider's
+[usage requirements](https://opencode.ai/docs/go/#where-can-i-use-it), including
+a stable session ID for each real coding conversation. Go is not a general
+unattended batch-compute subscription, and does not provide embeddings.
+
+R-Mem appends `/v1/chat/completions` for `provider = "openai"` or
+`/v1/messages` for `provider = "anthropic"`: **do not include `/v1` in
+`base_url`**. Choose the protocol supported by the model; a model appearing in
+`/models` does not establish that it supports both protocols.
+
+Extra headers are defaults; per-request authentication and protocol headers
+take precedence. Invalid header names or values fail before sending the request.
+Avoid putting secrets in custom headers when an API-key setting is available.
+For models that require a fixed temperature, configure that value (for example
+`temperature = 1.0`). Rust library callers can set `LlmConfig.temperature = None`
+to omit the field entirely.
+
 ---
 
 ## 🔗 Integration Guide
